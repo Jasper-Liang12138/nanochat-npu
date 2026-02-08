@@ -44,8 +44,15 @@ def get_hf_base_url():
 BASE_URL = get_hf_base_url()
 MAX_SHARD = 1822 # the last datashard is shard_01822.parquet
 index_to_filename = lambda index: f"shard_{index:05d}.parquet" # format of the filenames
-base_dir = get_base_dir()
-DATA_DIR = os.path.join(base_dir, "base_data")
+
+# Support custom data directory via environment variable
+# Default to NANOCHAT_DATA_DIR if set, otherwise use base_dir/base_data
+if "NANOCHAT_DATA_DIR" in os.environ:
+    DATA_DIR = os.environ["NANOCHAT_DATA_DIR"]
+else:
+    base_dir = get_base_dir()
+    DATA_DIR = os.path.join(base_dir, "base_data")
+
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # -----------------------------------------------------------------------------

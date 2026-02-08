@@ -10,22 +10,51 @@
 # 3) Example launch with wandb logging, but see below for setting up wandb first:
 # WANDB_RUN=speedrun screen -L -Logfile runs/speedrun.log -S speedrun bash runs/speedrun.sh
 
-# Default intermediate artifacts directory is in ~/.cache/nanochat
+# Default intermediate artifacts directory
 export OMP_NUM_THREADS=1
-export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
+export NANOCHAT_BASE_DIR="/work/home/hf_cache/nanochat"
+export UV_HOME="/work/home/hf_cache/uv"
+export NANOCHAT_DATA_DIR="/work/home/hf_cache/nano_datasets"
 mkdir -p $NANOCHAT_BASE_DIR
+mkdir -p $UV_HOME
+mkdir -p $NANOCHAT_DATA_DIR
 
 # -----------------------------------------------------------------------------
-# Python venv setup with uv
+# Python setup with uv (no virtual environment)
 
-# install uv (if not already installed)
-command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
-# create a .venv local virtual environment (if it doesn't exist)
-[ -d ".venv" ] || uv venv
-# install the repo dependencies
-uv sync --extra gpu
-# activate venv so that `python` uses the project's venv instead of system python
-source .venv/bin/activate
+# install uv to custom directory (if not already installed)
+if ! command -v uv &> /dev/null; then
+    export CARGO_HOME="$UV_HOME/cargo"
+    export RUSTUP_HOME="$UV_HOME/rustup"
+    # uv installer - install to custom location
+    # The installer respects CARGO_HOME for installation location
+    curl -LsSf https://astral.sh/uv/install.sh | CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" sh
+    # Add uv to PATH - check multiple possible locations
+    if [ -f "$CARGO_HOME/bin/uv" ]; then
+        export PATH="$CARGO_HOME/bin:$PATH"
+    elif [ -f "$HOME/.cargo/bin/uv" ]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+    elif [ -f "$HOME/.local/bin/uv" ]; then
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    # Also check if uv was installed to UV_HOME directly
+    if [ -f "$UV_HOME/bin/uv" ]; then
+        export PATH="$UV_HOME/bin:$PATH"
+    fi
+fi
+
+# Verify uv is available
+if ! command -v uv &> /dev/null; then
+    echo "Error: uv is not available after installation."
+    echo "Checked paths: $CARGO_HOME/bin, $HOME/.cargo/bin, $HOME/.local/bin, $UV_HOME/bin"
+    exit 1
+fi
+
+echo "Using uv from: $(which uv)"
+
+# install the repo dependencies directly to system Python (no venv)
+# Use --system flag to install to system Python instead of creating venv
+uv pip install --system -e ".[gpu]"
 
 # -----------------------------------------------------------------------------
 # wandb setup
