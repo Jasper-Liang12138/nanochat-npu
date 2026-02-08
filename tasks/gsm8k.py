@@ -14,6 +14,9 @@ Working 50 minutes, she earned 0.2 x 50 = $<<0.2*50=10>>10.
 Notice that GSM8K uses tool calls inside << >> tags.
 """
 
+# Import common to setup HF mirror if needed
+import nanochat.common  # noqa: F401
+
 import re
 from datasets import load_dataset
 from tasks.common import Task

@@ -17,6 +17,20 @@ try:
 except ImportError:
     HAS_NPU = False
 
+# Setup HuggingFace mirror support
+# This sets HF_ENDPOINT environment variable if not already set and HF_MIRROR is enabled
+# This helps with downloading datasets from hf-mirror.com in China
+def setup_hf_mirror():
+    """Setup HuggingFace mirror endpoint if HF_MIRROR is enabled and HF_ENDPOINT is not set."""
+    if "HF_ENDPOINT" not in os.environ:
+        hf_mirror = os.environ.get("HF_MIRROR", "").lower()
+        if hf_mirror in ["1", "true", "yes", "on"]:
+            os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+            logger.info("Using HuggingFace mirror: https://hf-mirror.com")
+
+# Call setup on import
+setup_hf_mirror()
+
 class ColoredFormatter(logging.Formatter):
     """Custom formatter that adds colors to log messages."""
     # ANSI color codes

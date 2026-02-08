@@ -4,6 +4,9 @@ Btw this dataset is a misnomer and has nothing to do with humans.
 It is a coding benchmark.
 """
 
+# Import common to setup HF mirror if needed
+import nanochat.common  # noqa: F401
+
 import re
 from datasets import load_dataset
 from nanochat.execution import execute_code

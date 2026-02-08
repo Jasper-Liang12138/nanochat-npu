@@ -20,7 +20,28 @@ from nanochat.common import get_base_dir
 # The specifics of the current pretraining dataset
 
 # The URL on the internet where the data is hosted and downloaded from on demand
-BASE_URL = "https://huggingface.co/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/main"
+# Support HF_MIRROR environment variable or auto-detect hf-mirror.com
+def get_hf_base_url():
+    """Get the base URL for HuggingFace datasets, supporting mirror sites."""
+    # Check if HF_ENDPOINT is set (used by huggingface_hub)
+    hf_endpoint = os.environ.get("HF_ENDPOINT", "")
+    if hf_endpoint:
+        # Convert HF_ENDPOINT to base URL format
+        if hf_endpoint.startswith("https://"):
+            base = hf_endpoint.rstrip("/")
+        else:
+            base = f"https://{hf_endpoint.rstrip('/')}"
+        return f"{base}/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/main"
+    
+    # Check if HF_MIRROR is explicitly set
+    hf_mirror = os.environ.get("HF_MIRROR", "").lower()
+    if hf_mirror in ["1", "true", "yes", "on"]:
+        return "https://hf-mirror.com/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/main"
+    
+    # Default to huggingface.co
+    return "https://huggingface.co/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/main"
+
+BASE_URL = get_hf_base_url()
 MAX_SHARD = 1822 # the last datashard is shard_01822.parquet
 index_to_filename = lambda index: f"shard_{index:05d}.parquet" # format of the filenames
 base_dir = get_base_dir()

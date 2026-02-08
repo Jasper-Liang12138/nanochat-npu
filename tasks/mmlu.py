@@ -3,6 +3,9 @@ The MMLU dataset.
 https://huggingface.co/datasets/cais/mmlu
 """
 
+# Import common to setup HF mirror if needed
+import nanochat.common  # noqa: F401
+
 from datasets import load_dataset
 from tasks.common import Task, render_mc
 

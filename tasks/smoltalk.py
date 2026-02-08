@@ -4,6 +4,9 @@ https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk
 We use the "smol" version, which is more appropriate for smaller models.
 """
 
+# Import common to setup HF mirror if needed
+import nanochat.common  # noqa: F401
+
 from datasets import load_dataset
 from tasks.common import Task
 

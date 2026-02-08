@@ -3,6 +3,9 @@ The ARC dataset from Allen AI.
 https://huggingface.co/datasets/allenai/ai2_arc
 """
 
+# Import common to setup HF mirror if needed
+import nanochat.common  # noqa: F401
+
 from datasets import load_dataset
 from tasks.common import Task, render_mc
 
