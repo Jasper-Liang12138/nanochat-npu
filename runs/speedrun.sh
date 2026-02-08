@@ -28,7 +28,11 @@ if ! command -v uv &> /dev/null; then
     export RUSTUP_HOME="$UV_HOME/rustup"
     # uv installer - install to custom location
     # The installer respects CARGO_HOME for installation location
-    curl -LsSf https://astral.sh/uv/install.sh | CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" sh
+    # Add retry logic for network issues
+    curl -LsSf --retry 3 --retry-delay 2 https://astral.sh/uv/install.sh | CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" sh || {
+        echo "Warning: curl download had SSL issues, but installation may have succeeded."
+        echo "Checking if uv was installed anyway..."
+    }
     # Add uv to PATH - check multiple possible locations
     if [ -f "$CARGO_HOME/bin/uv" ]; then
         export PATH="$CARGO_HOME/bin:$PATH"
@@ -54,7 +58,18 @@ echo "Using uv from: $(which uv)"
 
 # install the repo dependencies directly to system Python (no venv)
 # Use --system flag to install to system Python instead of creating venv
-uv pip install --system -e ".[gpu]"
+# Note: uv may fail if there are packages with non-standard version formats (e.g., apex-0.1_ascend)
+# In that case, we fall back to pip
+if ! uv pip install --system -e ".[gpu]" 2>&1 | tee /tmp/uv_install.log; then
+    echo "Warning: uv install failed (possibly due to non-standard package metadata like apex-0.1_ascend)."
+    echo "Falling back to pip..."
+    # Use pip3 if available, otherwise pip
+    if command -v pip3 &> /dev/null; then
+        pip3 install -e ".[gpu]"
+    else
+        pip install -e ".[gpu]"
+    fi
+fi
 
 # -----------------------------------------------------------------------------
 # wandb setup
