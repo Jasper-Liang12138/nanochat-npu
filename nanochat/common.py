@@ -10,6 +10,13 @@ import torch
 import torch.distributed as dist
 from filelock import FileLock
 
+# Try to import torch_npu for Ascend NPU support
+try:
+    import torch_npu
+    HAS_NPU = True
+except ImportError:
+    HAS_NPU = False
+
 class ColoredFormatter(logging.Formatter):
     """Custom formatter that adds colors to log messages."""
     # ANSI color codes
@@ -140,8 +147,10 @@ def get_dist_info():
         return False, 0, 0, 1
 
 def autodetect_device_type():
-    # prefer to use CUDA if available, otherwise use MPS, otherwise fallback on CPU
-    if torch.cuda.is_available():
+    # prefer to use NPU if available, then CUDA, then MPS, otherwise fallback on CPU
+    if HAS_NPU and hasattr(torch_npu, 'is_available') and torch_npu.is_available():
+        device_type = "npu"
+    elif torch.cuda.is_available():
         device_type = "cuda"
     elif torch.backends.mps.is_available():
         device_type = "mps"
@@ -150,12 +159,14 @@ def autodetect_device_type():
     print0(f"Autodetected device type: {device_type}")
     return device_type
 
-def compute_init(device_type="cuda"): # cuda|cpu|mps
+def compute_init(device_type="cuda"): # cuda|npu|cpu|mps
     """Basic initialization that we keep doing over and over, so make common."""
 
-    assert device_type in ["cuda", "mps", "cpu"], "Invalid device type atm"
+    assert device_type in ["cuda", "npu", "mps", "cpu"], "Invalid device type atm"
     if device_type == "cuda":
         assert torch.cuda.is_available(), "Your PyTorch installation is not configured for CUDA but device_type is 'cuda'"
+    if device_type == "npu":
+        assert HAS_NPU and hasattr(torch_npu, 'is_available') and torch_npu.is_available(), "Your PyTorch installation is not configured for NPU but device_type is 'npu'"
     if device_type == "mps":
         assert torch.backends.mps.is_available(), "Your PyTorch installation is not configured for MPS but device_type is 'mps'"
 
@@ -165,6 +176,9 @@ def compute_init(device_type="cuda"): # cuda|cpu|mps
     torch.manual_seed(42)
     if device_type == "cuda":
         torch.cuda.manual_seed(42)
+    elif device_type == "npu" and HAS_NPU:
+        if hasattr(torch_npu, 'manual_seed'):
+            torch_npu.manual_seed(42)
     # skipping full reproducibility for now, possibly investigate slowdown later
     # torch.use_deterministic_algorithms(True)
 
@@ -172,12 +186,19 @@ def compute_init(device_type="cuda"): # cuda|cpu|mps
     if device_type == "cuda":
         torch.backends.fp32_precision = "tf32" # uses tf32 instead of fp32 for matmuls
 
-    # Distributed setup: Distributed Data Parallel (DDP), optional, and requires CUDA
+    # Distributed setup: Distributed Data Parallel (DDP)
+    # CUDA uses nccl backend, NPU uses hccl backend
     is_ddp_requested, ddp_rank, ddp_local_rank, ddp_world_size = get_dist_info()
     if is_ddp_requested and device_type == "cuda":
         device = torch.device("cuda", ddp_local_rank)
         torch.cuda.set_device(device)  # make "cuda" default to this device
         dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    elif is_ddp_requested and device_type == "npu":
+        device = torch.device("npu", ddp_local_rank)
+        if HAS_NPU and hasattr(torch_npu, 'set_device'):
+            torch_npu.set_device(device)  # make "npu" default to this device
+        dist.init_process_group(backend="hccl", device_id=device)
         dist.barrier()
     else:
         device = torch.device(device_type) # mps|cpu
@@ -191,6 +212,52 @@ def compute_cleanup():
     """Companion function to compute_init, to clean things up before script exit"""
     if is_ddp_initialized():
         dist.destroy_process_group()
+
+def get_device_count(device_type: str) -> int:
+    """Get the number of available devices for the given device type."""
+    if device_type == "cuda":
+        return torch.cuda.device_count()
+    elif device_type == "npu":
+        if HAS_NPU and hasattr(torch_npu, 'device_count'):
+            return torch_npu.device_count()
+        return 1
+    elif device_type == "mps":
+        return 1  # MPS only supports single device
+    else:
+        return 1  # CPU
+
+def get_device_name(device_type: str, device_id: int = 0) -> str:
+    """Get the name of the device."""
+    if device_type == "cuda":
+        return torch.cuda.get_device_name(device_id)
+    elif device_type == "npu":
+        if HAS_NPU and hasattr(torch_npu, 'get_device_name'):
+            return torch_npu.get_device_name(device_id)
+        return "Ascend NPU"
+    elif device_type == "mps":
+        return "Apple Silicon"
+    else:
+        return "CPU"
+
+def synchronize_device(device_type: str):
+    """Synchronize the device (wait for all operations to complete)."""
+    if device_type == "cuda":
+        torch.cuda.synchronize()
+    elif device_type == "npu":
+        if HAS_NPU and hasattr(torch_npu, 'synchronize'):
+            torch_npu.synchronize()
+    # MPS and CPU don't need explicit synchronization
+
+def get_max_memory_allocated(device_type: str, device_id: int = 0) -> int:
+    """Get the maximum memory allocated on the device."""
+    if device_type == "cuda":
+        return torch.cuda.max_memory_allocated(device_id)
+    elif device_type == "npu":
+        if HAS_NPU and hasattr(torch_npu, 'max_memory_allocated'):
+            return torch_npu.max_memory_allocated(device_id)
+        return 0
+    else:
+        return 0
 
 class DummyWandb:
     """Useful if we wish to not use wandb but have all the same signatures"""
@@ -253,6 +320,12 @@ def get_peak_flops(device_name: str) -> float:
         max_comp_units = torch.xpu.get_device_properties("xpu").max_compute_units
         return 512 * max_comp_units * 1300 * 10**6
 
+    # Huawei Ascend NPU
+    if "ascend" in name or "910b" in name or "910" in name:
+        # Ascend 910B peak FLOPS (BF16): approximately 320 TFLOPS
+        if "910b" in name or "910" in name:
+            return 320e12
+    
     # Unknown GPU - return inf so MFU shows as 0% rather than a wrong guess
     logger.warning(f"Peak flops undefined for: {device_name}, MFU will show as 0%")
     return float('inf')

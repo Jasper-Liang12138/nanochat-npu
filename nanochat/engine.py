@@ -308,7 +308,7 @@ if __name__ == "__main__":
     # init compute
     device_type = autodetect_device_type()
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
-    autocast_ctx = torch.amp.autocast(device_type=device_type, dtype=torch.bfloat16) if device_type == "cuda" else nullcontext()
+    autocast_ctx = torch.amp.autocast(device_type=device_type, dtype=torch.bfloat16) if device_type in ["cuda", "npu"] else nullcontext()
 
     # load the model and tokenizer
     model, tokenizer, meta = load_model("base", device, phase="eval")
@@ -319,7 +319,7 @@ if __name__ == "__main__":
     prompt_tokens = tokenizer.encode("The chemical formula of water is", prepend=bos_token_id)
     # generate the reference sequence using the model.generate() function
     generated_tokens = []
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t0 = time.time()
     stream = model.generate(prompt_tokens, **kwargs)
     with autocast_ctx:
@@ -328,7 +328,7 @@ if __name__ == "__main__":
             chunk = tokenizer.decode([token])
             print(chunk, end="", flush=True)
     print()
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t1 = time.time()
     print(f"Reference time: {t1 - t0:.2f}s")
     reference_ids = generated_tokens
@@ -336,7 +336,7 @@ if __name__ == "__main__":
     generated_tokens = []
     engine = Engine(model, tokenizer)
     stream = engine.generate(prompt_tokens, num_samples=1, **kwargs) # note: runs in fp32
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t0 = time.time()
     with autocast_ctx:
         for token_column, token_masks in stream:
@@ -345,7 +345,7 @@ if __name__ == "__main__":
             chunk = tokenizer.decode([token])
             print(chunk, end="", flush=True)
     print()
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t1 = time.time()
     print(f"Engine time: {t1 - t0:.2f}s")
     # compare the two sequences

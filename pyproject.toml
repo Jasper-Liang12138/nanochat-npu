@@ -41,7 +41,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-# target torch to cuda 12.8 or CPU
+# target torch to cuda 12.8, NPU, or CPU
+# Note: For Ascend NPU support, install torch_npu separately:
+# pip install torch_npu (requires compatible PyTorch version and CANN toolkit)
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
