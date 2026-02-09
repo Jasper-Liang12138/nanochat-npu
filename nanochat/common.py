@@ -253,13 +253,13 @@ def compute_init(device_type="cuda"): # cuda|npu|cpu|mps
     if is_ddp_requested and device_type == "cuda":
         device = torch.device("cuda", ddp_local_rank)
         torch.cuda.set_device(device)  # make "cuda" default to this device
-        dist.init_process_group(backend="nccl", device_id=device)
+        dist.init_process_group(backend="nccl")
         dist.barrier()
     elif is_ddp_requested and device_type == "npu":
         device = torch.device("npu", ddp_local_rank)
         if HAS_NPU and hasattr(torch_npu, 'set_device'):
             torch_npu.set_device(device)  # make "npu" default to this device
-        dist.init_process_group(backend="hccl", device_id=device)
+        dist.init_process_group(backend="hccl")
         dist.barrier()
     else:
         device = torch.device(device_type) # mps|cpu
