@@ -162,9 +162,28 @@ def get_dist_info():
 
 def autodetect_device_type():
     # prefer to use NPU if available, then CUDA, then MPS, otherwise fallback on CPU
-    if HAS_NPU and hasattr(torch_npu, 'is_available') and torch_npu.is_available():
-        device_type = "npu"
-    elif torch.cuda.is_available():
+    if HAS_NPU:
+        # Try multiple ways to check NPU availability
+        npu_available = False
+        if hasattr(torch_npu, 'is_available'):
+            npu_available = torch_npu.is_available()
+        elif hasattr(torch, 'npu') and hasattr(torch.npu, 'is_available'):
+            npu_available = torch.npu.is_available()
+        else:
+            # Try to check if NPU device count > 0 as fallback
+            try:
+                if hasattr(torch, 'npu') and hasattr(torch.npu, 'device_count'):
+                    npu_available = torch.npu.device_count() > 0
+                elif hasattr(torch_npu, 'device_count'):
+                    npu_available = torch_npu.device_count() > 0
+            except:
+                pass
+        if npu_available:
+            device_type = "npu"
+            print0(f"Autodetected device type: {device_type}")
+            return device_type
+
+    if torch.cuda.is_available():
         device_type = "cuda"
     elif torch.backends.mps.is_available():
         device_type = "mps"
@@ -182,9 +201,24 @@ def compute_init(device_type="cuda"): # cuda|npu|cpu|mps
     if device_type == "npu":
         if not HAS_NPU:
             raise RuntimeError("torch_npu is not installed. Please install torch_npu: pip install torch_npu")
-        if not hasattr(torch_npu, 'is_available'):
-            raise RuntimeError("torch_npu.is_available() not found. Please check your torch_npu installation.")
-        if not torch_npu.is_available():
+
+        # Check NPU availability - try multiple API methods
+        npu_available = False
+        if hasattr(torch_npu, 'is_available'):
+            npu_available = torch_npu.is_available()
+        elif hasattr(torch, 'npu') and hasattr(torch.npu, 'is_available'):
+            npu_available = torch.npu.is_available()
+        else:
+            # Try to check if NPU device count > 0 as fallback
+            try:
+                if hasattr(torch, 'npu') and hasattr(torch.npu, 'device_count'):
+                    npu_available = torch.npu.device_count() > 0
+                elif hasattr(torch_npu, 'device_count'):
+                    npu_available = torch_npu.device_count() > 0
+            except:
+                pass
+
+        if not npu_available:
             raise RuntimeError(
                 "NPU is not available. Please check:\n"
                 "1. CANN toolkit is installed\n"
