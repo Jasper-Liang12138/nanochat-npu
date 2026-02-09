@@ -180,7 +180,20 @@ def compute_init(device_type="cuda"): # cuda|npu|cpu|mps
     if device_type == "cuda":
         assert torch.cuda.is_available(), "Your PyTorch installation is not configured for CUDA but device_type is 'cuda'"
     if device_type == "npu":
-        assert HAS_NPU and hasattr(torch_npu, 'is_available') and torch_npu.is_available(), "Your PyTorch installation is not configured for NPU but device_type is 'npu'"
+        if not HAS_NPU:
+            raise RuntimeError("torch_npu is not installed. Please install torch_npu: pip install torch_npu")
+        if not hasattr(torch_npu, 'is_available'):
+            raise RuntimeError("torch_npu.is_available() not found. Please check your torch_npu installation.")
+        if not torch_npu.is_available():
+            raise RuntimeError(
+                "NPU is not available. Please check:\n"
+                "1. CANN toolkit is installed\n"
+                "2. CANN environment is initialized. Run:\n"
+                "   source /usr/local/Ascend/ascend-toolkit/set_env.sh\n"
+                "   (or the path where your CANN is installed)\n"
+                "3. NPU devices are visible: npu-smi info\n"
+                "4. ASCEND_RT_VISIBLE_DEVICES is set correctly if needed"
+            )
     if device_type == "mps":
         assert torch.backends.mps.is_available(), "Your PyTorch installation is not configured for MPS but device_type is 'mps'"
 

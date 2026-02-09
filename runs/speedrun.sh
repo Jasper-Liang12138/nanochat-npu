@@ -10,6 +10,33 @@
 # 3) Example launch with wandb logging, but see below for setting up wandb first:
 # WANDB_RUN=speedrun screen -L -Logfile runs/speedrun.log -S speedrun bash runs/speedrun.sh
 
+# -----------------------------------------------------------------------------
+# NPU Environment Setup (REQUIRED for Ascend NPU)
+# Initialize CANN environment before running the script
+# Adjust the path according to your CANN installation location
+
+# Common CANN installation paths (uncomment the one that matches your setup):
+# source /usr/local/Ascend/ascend-toolkit/set_env.sh
+# source /usr/local/Ascend/nnae/set_env.sh
+# source /usr/local/Ascend/latest/set_env.sh
+
+# Or set CANN path automatically if exists
+if [ -f "/usr/local/Ascend/ascend-toolkit/set_env.sh" ]; then
+    echo "Initializing CANN environment from /usr/local/Ascend/ascend-toolkit/set_env.sh"
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+elif [ -f "/usr/local/Ascend/nnae/set_env.sh" ]; then
+    echo "Initializing CANN environment from /usr/local/Ascend/nnae/set_env.sh"
+    source /usr/local/Ascend/nnae/set_env.sh
+elif [ -f "/usr/local/Ascend/latest/set_env.sh" ]; then
+    echo "Initializing CANN environment from /usr/local/Ascend/latest/set_env.sh"
+    source /usr/local/Ascend/latest/set_env.sh
+else
+    echo "WARNING: CANN environment script not found in standard locations."
+    echo "Please manually source your CANN set_env.sh before running this script."
+    echo "Example: source /path/to/your/CANN/set_env.sh"
+fi
+
+# -----------------------------------------------------------------------------
 # Default intermediate artifacts directory
 export OMP_NUM_THREADS=1
 export NANOCHAT_BASE_DIR="/work/home/hf_cache/nanochat"
