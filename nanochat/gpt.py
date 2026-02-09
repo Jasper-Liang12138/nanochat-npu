@@ -41,7 +41,16 @@ class GPTConfig:
 
 def norm(x):
     # Purely functional rmsnorm with no learnable params
-    return F.rms_norm(x, (x.size(-1),))
+    # Compatible with older PyTorch versions that don't have F.rms_norm
+    if hasattr(F, 'rms_norm'):
+        # Use built-in rms_norm if available (PyTorch 2.9+)
+        return F.rms_norm(x, (x.size(-1),))
+    else:
+        # Fallback implementation for older PyTorch versions
+        # RMSNorm: x / sqrt(mean(x^2) + eps)
+        eps = 1e-5
+        rms = (x.pow(2).mean(dim=-1, keepdim=True) + eps).sqrt()
+        return x / rms
 
 
 def has_ve(layer_idx, n_layer):
